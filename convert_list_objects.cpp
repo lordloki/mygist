@@ -1,4 +1,67 @@
-void KX_Scene::ConvertBlenderObjectsList(std::vector<Object> *objectlist, bool asynchronous)
+void KX_Scene::convert_blender_objects_list_synchronous(Collection *co)
+{
+  KX_KetsjiEngine *engine = KX_GetActiveEngine();
+  e_PhysicsEngine physics_engine = UseBullet;
+  RAS_Rasterizer *rasty = engine->GetRasterizer();
+  RAS_ICanvas *canvas = engine->GetCanvas();
+  bContext *C = engine->GetContext();
+  Depsgraph *depsgraph = CTX_data_expect_evaluated_depsgraph(C);
+  Main *bmain = CTX_data_main(C);
+
+  FOREACH_COLLECTION_OBJECT_RECURSIVE_BEGIN (co, obj) {
+    BL_ConvertBlenderObjects(bmain,
+                             depsgraph,
+                             this,
+                             engine,
+                             physics_engine,
+                             rasty,
+                             canvas,
+                             m_sceneConverter,
+                             obj,
+                             false,
+                             false);
+  }
+  FOREACH_COLLECTION_OBJECT_RECURSIVE_END;
+}
+
+// Task data for convertBlenderCollection in a different thread.
+struct ConvertBlenderObjectsListTaskData {
+  std::vector<Object> objectslist;
+  KX_KetsjiEngine *engine;
+  e_PhysicsEngine physics_engine;
+  KX_Scene *scene;
+  BL_BlenderSceneConverter *converter;
+};
+
+void convert_blender_objects_list_thread_func(TaskPool *__restrict UNUSED(pool),
+                                            void *taskdata,
+                                            int UNUSED(threadid))
+{
+  ConvertBlenderObjectsListTaskData *task = static_cast<ConvertBlenderObjectsListTaskData *>(taskdata);
+
+  RAS_Rasterizer *rasty = task->engine->GetRasterizer();
+  RAS_ICanvas *canvas = task->engine->GetCanvas();
+  bContext *C = task->engine->GetContext();
+  Depsgraph *depsgraph = CTX_data_expect_evaluated_depsgraph(C);
+  Main *bmain = CTX_data_main(C);
+
+  LISTBASE_FOREACH (Object *, obj, &task->objectslist.begin()) {
+    BL_ConvertBlenderObjects(bmain,
+                             depsgraph,
+                             task->scene,
+                             task->engine,
+                             task->physics_engine,
+                             rasty,
+                             canvas,
+                             task->converter,
+                             obj,
+                             false,
+                             false);
+  }
+  FOREACH_COLLECTION_OBJECT_RECURSIVE_END;
+}
+
+void KX_Scene::ConvertBlenderObjectsList(std::vector<Object> *objectslist, bool asynchronous)
 {
   if (asynchronous) {
     TaskPool *taskpool = BLI_task_pool_create(nullptr, TASK_PRIORITY_LOW);
@@ -10,7 +73,7 @@ void KX_Scene::ConvertBlenderObjectsList(std::vector<Object> *objectlist, bool a
 
     task->engine = KX_GetActiveEngine();
     task->physics_engine = UseBullet;
-    task->co = co;
+    task->objectslist = objectslist;
     task->scene = this;
     task->converter = m_sceneConverter;
 
@@ -24,7 +87,7 @@ void KX_Scene::ConvertBlenderObjectsList(std::vector<Object> *objectlist, bool a
     taskpool = nullptr;
   }
   else {
-    convert_blender_objects_list_synchronous(co);
+    convert_blender_objects_list_synchronous(objectslist);
   }
 }
 
