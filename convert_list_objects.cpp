@@ -1,4 +1,4 @@
-void KX_Scene::convert_blender_objects_list_synchronous(Collection *co)
+void KX_Scene::convert_blender_objects_list_synchronous(Object *objectslist)
 {
   KX_KetsjiEngine *engine = KX_GetActiveEngine();
   e_PhysicsEngine physics_engine = UseBullet;
@@ -8,7 +8,7 @@ void KX_Scene::convert_blender_objects_list_synchronous(Collection *co)
   Depsgraph *depsgraph = CTX_data_expect_evaluated_depsgraph(C);
   Main *bmain = CTX_data_main(C);
 
-  FOREACH_COLLECTION_OBJECT_RECURSIVE_BEGIN (co, obj) {
+  LISTBASE_FOREACH (Object *, obj, &objectslist) {
     BL_ConvertBlenderObjects(bmain,
                              depsgraph,
                              this,
@@ -21,12 +21,12 @@ void KX_Scene::convert_blender_objects_list_synchronous(Collection *co)
                              false,
                              false);
   }
-  FOREACH_COLLECTION_OBJECT_RECURSIVE_END;
+  LISTBASE_FOREACH_END;
 }
 
 // Task data for convertBlenderCollection in a different thread.
 struct ConvertBlenderObjectsListTaskData {
-  std::vector<Object> objectslist;
+  Object *objectslist;
   KX_KetsjiEngine *engine;
   e_PhysicsEngine physics_engine;
   KX_Scene *scene;
@@ -45,7 +45,7 @@ void convert_blender_objects_list_thread_func(TaskPool *__restrict UNUSED(pool),
   Depsgraph *depsgraph = CTX_data_expect_evaluated_depsgraph(C);
   Main *bmain = CTX_data_main(C);
 
-  LISTBASE_FOREACH (Object *, obj, &task->objectslist.begin()) {
+  LISTBASE_FOREACH (Object *, obj, &task->objectslist) {
     BL_ConvertBlenderObjects(bmain,
                              depsgraph,
                              task->scene,
@@ -58,10 +58,10 @@ void convert_blender_objects_list_thread_func(TaskPool *__restrict UNUSED(pool),
                              false,
                              false);
   }
-  FOREACH_COLLECTION_OBJECT_RECURSIVE_END;
+  LISTBASE_FOREACH_END;
 }
 
-void KX_Scene::ConvertBlenderObjectsList(std::vector<Object> *objectslist, bool asynchronous)
+void KX_Scene::ConvertBlenderObjectsList(Object *objectslist, bool asynchronous)
 {
   if (asynchronous) {
     TaskPool *taskpool = BLI_task_pool_create(nullptr, TASK_PRIORITY_LOW);
@@ -92,7 +92,6 @@ void KX_Scene::ConvertBlenderObjectsList(std::vector<Object> *objectslist, bool 
 }
 
 
-
 KX_PYMETHODDEF_DOC(KX_Scene,
                    convertBlenderObjectsList,
                    "convertBlenderObjectsList()\n"
@@ -100,7 +99,7 @@ KX_PYMETHODDEF_DOC(KX_Scene,
 {
   std:vector<Object> objectlist;
   PyObject *list;
-  int asynchronous;
+  int asynchronous = 0;
 
   if (!PyArg_ParseTuple(args, "O!i:", &PyList_Type, &list, &asynchronous)) {
     std::cout << "Expected a bpy.types.Object list." << std::endl;
@@ -121,6 +120,6 @@ KX_PYMETHODDEF_DOC(KX_Scene,
     objectslist.push_back((Object *)id);
   }
 
-  ConvertBlenderObjectsList(objectlist, asynchronous);
+  ConvertBlenderObjectsList(&objectlist.front(), asynchronous);
   Py_RETURN_NONE;
 }
