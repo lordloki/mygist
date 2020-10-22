@@ -21,7 +21,6 @@ void KX_Scene::convert_blender_objects_list_synchronous(Object *objectslist)
                              false,
                              false);
   }
-  LISTBASE_FOREACH_END;
 }
 
 // Task data for convertBlenderCollection in a different thread.
@@ -58,7 +57,6 @@ void convert_blender_objects_list_thread_func(TaskPool *__restrict UNUSED(pool),
                              false,
                              false);
   }
-  LISTBASE_FOREACH_END;
 }
 
 void KX_Scene::ConvertBlenderObjectsList(Object *objectslist, bool asynchronous)
