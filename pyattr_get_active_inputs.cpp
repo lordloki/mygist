@@ -9,15 +9,15 @@ PyObject *SCA_PythonMouse::pyattr_get_active_inputs(PyObjectPlus *self_v,
     SCA_InputEvent &input = self->m_mouse->GetInput((SCA_IInputDevice::SCA_EnumInputs)i);
 
     unsigned int num_active = input.Find(SCA_InputEvent::ACTIVE);
-    if (num_active) {
+    if (input.Find(SCA_InputEvent::ACTIVE)) {
       PyObject *key = PyLong_FromLong(i);
         
-      for (int i = 0; i < num_active; i++) {
+      for (int i = 1; i < input.m_status.size(); i++) {
         // Generate a input event with one of the accumulative events only
         SCA_InputEvent temp;
-        temp.m_status.push_back(input.m_status[i+1]);
-        temp.m_values.push_back(input.m_values[i+1]);
-        temp.m_queue.push_back(input.m_queue[i]);
+        temp.m_status.push_back(input.m_status[i]);
+        temp.m_values.push_back(input.m_values[i]);
+        temp.m_queue.push_back(input.m_queue[i-1]);
 	  
         PyDict_SetItem(self->m_event_dict, key, temp.GetProxy());
 	
